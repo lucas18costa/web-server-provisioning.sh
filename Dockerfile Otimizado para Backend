@@ -1,0 +1,32 @@
+# Estágio de build
+FROM node:16-alpine AS build
+
+WORKDIR /app
+
+# Copia apenas os arquivos de dependências primeiro para aproveitar o cache do Docker
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copia o restante dos arquivos do projeto
+COPY . .
+
+# Estágio de produção
+FROM node:16-alpine
+
+# Cria um usuário não-root para segurança
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copia apenas os arquivos necessários do estágio de build
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/src ./src
+
+# Define usuário não-root
+USER appuser
+
+EXPOSE 8080
+
+# Usa CMD em vez de ENTRYPOINT para maior flexibilidade
+CMD ["node", "src/index.js"]
